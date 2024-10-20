@@ -39,7 +39,7 @@ let ForbiddenTermDef;
 
 /**
  * Terms that must not appear in our source files.
- * @const {Object<string, string|!ForbiddenTermDef>}
+ * @const {{[key: string]: string|!ForbiddenTermDef}}
  */
 const forbiddenTermsGlobal = {
   'DO NOT SUBMIT': {
@@ -743,7 +743,7 @@ const measurementApiDeprecated =
   ' @ampproject/wg-performance for questions.';
 
 /**
- * @const {Object<string, string|!ForbiddenTermDef>}
+ * @const {{[key: string]: string|!ForbiddenTermDef}}
  */
 const forbiddenTermsSrcInclusive = {
   '\\.innerHTML(?!_)': bannedTermsHelpString,
@@ -919,12 +919,15 @@ const forbiddenTermsSrcInclusive = {
       'extensions/amp-consent/0.1/consent-state-manager.js',
     ],
   },
-  '(cdn|3p)\\.ampproject\\.': {
+  'ampproject\\.': {
     message:
       'The CDN domain should typically not be hardcoded in source ' +
       'code. Use urls from src/config/urls.js instead.',
     allowlist: [
-      'ads/_a4a-config.js',
+      // NOTE: Do not allow source code to be allowlisted for this rule.
+      // explicitly allow individual lines through eslint. The only
+      // exception is `src/config/urls.js` as it contains the variables
+      // that need to be referenced by other modules.
       'build-system/server/amp4test.js',
       'build-system/server/app-index/amphtml-helpers.js',
       'build-system/server/app-video-testbench.js',
@@ -933,9 +936,6 @@ const forbiddenTermsSrcInclusive = {
       'build-system/server/variable-substitution.js',
       'build-system/tasks/dist.js',
       'build-system/tasks/helpers.js',
-      'build-system/tasks/performance/helpers.js',
-      'src/3p-frame.js',
-      'src/amp-story-player/amp-story-player-impl.js',
       'src/config/urls.js',
       'testing/local-amp-chrome-extension/background.js',
       'tools/experiments/experiments.js',
@@ -1093,7 +1093,7 @@ function stripComments(contents) {
  *
  * @param {string} srcFile
  * @param {string} contents
- * @param {!Object<string, string|!ForbiddenTermDef>} terms
+ * @param {!{[key: string]: string|!ForbiddenTermDef}} terms
  * @return {Array<!ForbiddenTermMatchDef>}
  */
 function matchForbiddenTerms(srcFile, contents, terms) {

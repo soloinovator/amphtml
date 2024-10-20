@@ -46,7 +46,7 @@ let AdNetworkConfigDef;
  *   fullWidthHeightRatio: number
  * }
  *
- * @const {!Object<string, !JsonObject>}
+ * @const {!{[key: string]: !JsonObject}}
  */
 const adConfig = jsonConfiguration({
   '_ping_': {
@@ -136,6 +136,8 @@ const adConfig = jsonConfiguration({
   'admanmedia': {
     renderStartImplemented: true,
   },
+
+  'admatic': {},
 
   'admixer': {
     renderStartImplemented: true,
@@ -238,6 +240,11 @@ const adConfig = jsonConfiguration({
       'https://tpc.googlesyndication.com',
     ],
     renderStartImplemented: true,
+  },
+
+  'adsviu': {
+    prefetch: 'https://widget.adsviu.com/adsviuAMP.js',
+    preconnect: ['https://api.adsviu.com'],
   },
 
   'adunity': {
@@ -343,6 +350,10 @@ const adConfig = jsonConfiguration({
     renderStartImplemented: true,
   },
 
+  'appmonsta': {
+    preconnect: 'https://ssp.appmonsta.ai',
+  },
+
   'appnexus': {
     prefetch: 'https://acdn.adnxs.com/ast/ast.js',
     preconnect: 'https://ib.adnxs.com',
@@ -368,6 +379,11 @@ const adConfig = jsonConfiguration({
       'https://s.beop.io',
       'https://data.beop.io',
     ],
+    renderStartImplemented: true,
+  },
+
+  'bidgear': {
+    prefetch: 'https://platform.bidgear.com/bidgear-amp.js',
     renderStartImplemented: true,
   },
 
@@ -535,6 +551,8 @@ const adConfig = jsonConfiguration({
     renderStartImplemented: true,
   },
 
+  'fairground': {},
+
   'fake': {},
 
   'fake-delayed': {
@@ -645,6 +663,11 @@ const adConfig = jsonConfiguration({
   },
   'improvedigital': {},
 
+  'incrementx': {
+    prefetch: 'https://cdn.incrementxserv.com/ixamp.js',
+    renderStartImplemented: true,
+  },
+
   'industrybrains': {
     prefetch: 'https://web.industrybrains.com/js/ads/async/show.js',
     preconnect: [
@@ -674,7 +697,6 @@ const adConfig = jsonConfiguration({
     prefetch: 'https://securepubads.g.doubleclick.net/tag/js/gpt.js',
     preconnect: [
       'https://tpc.googlesyndication.com',
-      'https://adservice.google.com',
       'https://cdn.insurads.com',
       'https://services.insurads.com',
       'https://messaging.insurads.com',
@@ -724,15 +746,6 @@ const adConfig = jsonConfiguration({
   },
 
   'kuadio': {},
-
-  'lentainform': {
-    renderStartImplemented: true,
-    preconnect: [
-      'https://jsc.lentainform.com',
-      'https://servicer.lentainform.com',
-      'https://s-img.lentainform.com',
-    ],
-  },
 
   'ligatus': {
     prefetch: 'https://ssl.ligatus.com/render/ligrend.js',
@@ -792,7 +805,6 @@ const adConfig = jsonConfiguration({
       'https://marfeel-d.openx.net',
       'https://ice.360yield.com',
       'https://mbid.marfeelrev.com',
-      'https://adservice.google.com',
     ],
     consentHandlingOverride: true,
   },
@@ -858,6 +870,11 @@ const adConfig = jsonConfiguration({
   'mixpo': {
     prefetch: 'https://cdn.mixpo.com/js/loader.js',
     preconnect: ['https://player1.mixpo.com', 'https://player2.mixpo.com'],
+  },
+
+  'momagic': {
+    prefetch: 'https://securepubads.g.doubleclick.net/tag/js/gpt.js',
+    preconnect: ['https://amp.truereach.co.in/'],
   },
 
   'monetizer101': {
@@ -979,6 +996,13 @@ const adConfig = jsonConfiguration({
     consentHandlingOverride: true,
   },
 
+  'piberica': {
+    preconnect: ['https://trafico.prensaiberica.es'],
+    renderStartImplemented: true,
+  },
+
+  'pixad': {},
+
   'pixels': {
     prefetch: 'https://cdn.adsfactor.net/amp/pixels-amp.min.js',
     clientIdCookieName: '__AF',
@@ -1034,6 +1058,10 @@ const adConfig = jsonConfiguration({
   'pubmine': {
     prefetch: ['https://s.pubmine.com/head.js'],
     preconnect: 'https://delivery.g.switchadhub.com',
+    renderStartImplemented: true,
+  },
+
+  'pubscale': {
     renderStartImplemented: true,
   },
 
@@ -1167,6 +1195,12 @@ const adConfig = jsonConfiguration({
     renderStartImplemented: true,
   },
 
+  'sevio': {
+    preconnect: ['https://request.adx.ws'],
+    prefetch: ['https://cdn.adx.ws/scripts/amp.js'],
+    renderStartImplemented: true,
+  },
+
   'sharethrough': {
     renderStartImplemented: true,
   },
@@ -1186,6 +1220,10 @@ const adConfig = jsonConfiguration({
 
   'sklik': {
     prefetch: 'https://c.imedia.cz/js/amp.js',
+  },
+
+  'skoiy': {
+    preconnect: ['https://svas.skoiy.xyz'],
   },
 
   'slimcutmedia': {
@@ -1452,11 +1490,6 @@ const adConfig = jsonConfiguration({
   'xlift': {
     prefetch: 'https://cdn.x-lift.jp/resources/common/xlift_amp.js',
     renderStartImplemented: true,
-  },
-
-  'yahoo': {
-    prefetch: 'https://s.yimg.com/aaq/ampad/display.js',
-    preconnect: 'https://us.adserver.yahoo.com',
   },
 
   'yahoofedads': {

@@ -619,6 +619,12 @@
       "interactive_tests": "examples/visual-tests/amp-form/amp-form.js"
     },
     {
+      "url": "examples/visual-tests/amp-form/amp-form-server-error.amp.html",
+      "name": "amp-form (server error)",
+      "interactive_tests": "examples/visual-tests/amp-form/amp-form-server-error.js",
+      "no_base_test": true
+    },
+    {
       "url": "examples/visual-tests/amp-accordion/amp-accordion.html",
       "name": "amp-accordion: page loads",
       "loading_complete_delay_ms": 1000,
@@ -729,6 +735,8 @@
       "no_base_test": true
     },
     {
+      "flaky": true,
+      // See https://app.circleci.com/pipelines/github/ampproject/amphtml/30897/workflows/f282d8cb-5906-400d-93e6-add6ae10f59b/jobs/669174
       "url": "examples/visual-tests/amp-story-player/player-amp-version.html",
       "name": "amp-story-player AMP version",
       "interactive_tests": "examples/visual-tests/amp-story-player/player-amp-version.js",

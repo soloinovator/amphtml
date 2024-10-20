@@ -27,9 +27,6 @@ const sandboxVals =
   'allow-scripts ' +
   'allow-top-navigation';
 
-const TOKEN_VALUE_1P =
-  'ApOvjV1JJJiKYK4MP/D8NP1voJFNXHeKLUO5rW8JIMfBsw0JdciNfRfci8bf2++aqywaKUkyUUuMWZoaOgxtFQwAAABweyJvcmlnaW4iOiJodHRwczovL2FtcHByb2plY3Qub3JnOjQ0MyIsImZlYXR1cmUiOiJQcml2YWN5U2FuZGJveEFkc0FQSXMiLCJleHBpcnkiOjE2ODgwODMxOTksImlzU3ViZG9tYWluIjp0cnVlfQ==';
-
 /**
  * Create the starting html for all FIE ads. If streaming is supported body will be
  * piped in later.
@@ -55,7 +52,6 @@ export const createSecureDocSkeleton = (url, sanitizedHeadElements, body) =>
       default-src 'none';
       style-src ${fontProviderAllowList} 'unsafe-inline';
     ">
-    <meta http-equiv="origin-trial" content=${TOKEN_VALUE_1P}>
     ${sanitizedHeadElements}
   </head>
   <body>${body}</body>

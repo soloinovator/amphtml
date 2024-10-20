@@ -4,9 +4,8 @@ require('geckodriver');
 
 const argv = require('minimist')(process.argv.slice(2));
 const chrome = require('selenium-webdriver/chrome');
-const fetch = require('node-fetch');
 const firefox = require('selenium-webdriver/firefox');
-const selenium = require('selenium-webdriver');
+const {Builder, logging} = require('selenium-webdriver');
 const {
   clearLastExpectError,
   getLastExpectError,
@@ -20,8 +19,6 @@ const {configureHelpers} = require('../../../testing/helpers');
 const {HOST, PORT} = require('../serve');
 const {installRepl, uninstallRepl} = require('./repl');
 const {isCiBuild} = require('../../common/ci');
-const {buildBentoE2E} = require('./build-bento-e2e');
-const {Builder, Capabilities, logging} = selenium;
 
 /** Should have something in the name, otherwise nothing is shown. */
 const SUB = ' ';
@@ -29,8 +26,6 @@ const TEST_TIMEOUT = 3000;
 // This can be much lower when the OSX container can be sped up allowing tests
 // in extensions/amp-script/0.1/test-e2e/test-amp-script.js to run faster
 const SETUP_TIMEOUT = 10000;
-// Circle CI is much slower to build the react bundle, so the timeout is raised currently
-const BUILD_E2E_TIMEOUT = 20000;
 const SETUP_RETRIES = 3;
 const DEFAULT_E2E_INITIAL_RECT = {width: 800, height: 600};
 const COV_REPORT_PATH = '/coverage/client';
@@ -43,6 +38,9 @@ let istanbulMiddleware;
 if (argv.coverage) {
   istanbulMiddleware = require('istanbul-middleware/lib/core');
 }
+
+/** @typedef {import('selenium-webdriver').WebDriver} WebDriver */
+/** @typedef {"chrome" | "firefox" | "safari"} BrowserNameDef */
 
 /**
  * @typedef {{
@@ -91,10 +89,10 @@ function getConfig() {
 
 /**
  * Configure and launch a Selenium instance
- * @param {string} browserName
+ * @param {BrowserNameDef} browserName
  * @param {!SeleniumConfigDef=} args
  * @param {string=} deviceName
- * @return {!selenium.WebDriver}
+ * @return {!WebDriver}
  */
 function createSelenium(browserName, args = {}, deviceName) {
   switch (browserName) {
@@ -104,24 +102,18 @@ function createSelenium(browserName, args = {}, deviceName) {
     case 'firefox':
       return createDriver(browserName, getFirefoxArgs(args), deviceName);
     case 'chrome':
-    default:
       return createDriver(browserName, getChromeArgs(args), deviceName);
   }
 }
 
 /**
  *
- * @param {string} browserName
+ * @param {BrowserNameDef} browserName
  * @param {!string[]} args
  * @param {string=} deviceName
- * @return {!selenium.WebDriver}
+ * @return {!WebDriver}
  */
 function createDriver(browserName, args, deviceName) {
-  const capabilities = Capabilities[browserName]();
-
-  const prefs = new logging.Preferences();
-  prefs.setLevel(logging.Type.PERFORMANCE, logging.Level.ALL);
-  capabilities.setLoggingPrefs(prefs);
   switch (browserName) {
     case 'firefox':
       const firefoxOptions = new firefox.Options();
@@ -134,19 +126,27 @@ function createDriver(browserName, args, deviceName) {
         .forBrowser('firefox')
         .setFirefoxOptions(firefoxOptions)
         .build();
+
     case 'chrome':
-      const chromeOptions = new chrome.Options(capabilities);
-      chromeOptions.addArguments(args);
+      const loggingPrefs = new logging.Preferences();
+      loggingPrefs.setLevel(logging.Type.PERFORMANCE, logging.Level.ALL);
+
+      const chromeOptions = new chrome.Options();
+      chromeOptions.setLoggingPrefs(loggingPrefs);
+      chromeOptions.addArguments(...args);
+      if (process.env.CHROME_BIN) {
+        chromeOptions.setChromeBinaryPath(process.env.CHROME_BIN);
+      }
       if (deviceName) {
         chromeOptions.setMobileEmulation({deviceName});
       }
-      const driver = chrome.Driver.createSession(chromeOptions);
-      //TODO(estherkim): workaround. `onQuit()` was added in selenium-webdriver v4.0.0-alpha.5
-      //which is also when `Server terminated early with status 1` began appearing. Coincidence? Maybe.
-      driver.onQuit = null;
-      return driver;
+      return new Builder()
+        .forBrowser('chrome')
+        .setChromeOptions(chromeOptions)
+        .build();
+
     case 'safari':
-      return new Builder().forBrowser(browserName).build();
+      return new Builder().forBrowser('safari').build();
   }
 }
 
@@ -282,7 +282,7 @@ envPresets['ampdoc-amp4ads-preset'] = envPresets['ampdoc-preset'].concat(
 class ItConfig {
   /**
    * @param {function} it
-   * @param {Object} env
+   * @param {object} env
    */
   constructor(it, env) {
     this.it = /** @type {Mocha.it} */ (it);
@@ -431,7 +431,7 @@ function describeEnv(factory) {
     }
 
     /**
-     * @param {string} browserName
+     * @param {BrowserNameDef} browserName
      */
     function createVariantDescribe(browserName) {
       for (const name in variants) {
@@ -453,28 +453,13 @@ function describeEnv(factory) {
     /**
      *
      * @param {string} _name
-     * @param {Object} variant
-     * @param {string} browserName
+     * @param {object} variant
+     * @param {BrowserNameDef} browserName
      */
     function doTemplate(_name, variant, browserName) {
       const env = Object.create(variant);
       // @ts-ignore
       this.timeout(TEST_TIMEOUT);
-      before(async function () {
-        if (spec.bentoComponentName && spec.testFor) {
-          this.timeout(BUILD_E2E_TIMEOUT);
-          await buildBentoE2E(
-            {
-              fortesting: true,
-              localDev: true,
-              minify: true,
-              watch: false,
-            },
-            spec.bentoComponentName,
-            spec.testFor
-          );
-        }
-      });
       beforeEach(async function () {
         this.timeout(SETUP_TIMEOUT);
         configureHelpers(env);
@@ -583,7 +568,7 @@ class EndToEndFixture {
 
   /**
    * @param {!Object} env
-   * @param {string} browserName
+   * @param {BrowserNameDef} browserName
    * @param {number} retries
    * @return {Promise<void>}
    */
@@ -651,9 +636,9 @@ class EndToEndFixture {
 /**
  * Get the driver for the configured engine.
  * @param {!DescribesConfigDef} describesConfig
- * @param {string} browserName
+ * @param {BrowserNameDef} browserName
  * @param {string|undefined} deviceName
- * @return {!selenium.WebDriver}
+ * @return {!WebDriver}
  */
 function getDriver({headless = false}, browserName, deviceName) {
   return createSelenium(browserName, {headless}, deviceName);
@@ -670,7 +655,7 @@ function getDriver({headless = false}, browserName, deviceName) {
  */
 async function setUpTest(
   {ampDriver, controller, environment},
-  {testUrl = '', version, experiments = [], initialRect}
+  {experiments = [], initialRect, testUrl = '', version}
 ) {
   const url = new URL(testUrl);
 

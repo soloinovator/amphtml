@@ -19,13 +19,11 @@ import {
   getCsiAmpAnalyticsConfig,
   getCsiAmpAnalyticsVariables,
   getEnclosingContainerTypes,
-  getIdentityToken,
   getServeNpaPromise,
   googleAdUrl,
   isCdnProxy,
   isReportingEnabled,
   maybeAppendErrorParameter,
-  maybeInsertOriginTrialToken,
 } from '#ads/google/a4a/utils';
 
 import {
@@ -123,9 +121,6 @@ export class AmpAdNetworkAdsenseImpl extends AmpA4A {
     /** @private {?ResponsiveState}.  */
     this.responsiveState_ = ResponsiveState.createIfResponsive(element);
 
-    /** @private {?Promise<!../../../ads/google/a4a/utils.IdentityToken>} */
-    this.identityTokenPromise_ = null;
-
     /**
      * @private {?boolean} whether preferential rendered AMP creative, null
      * indicates no creative render.
@@ -174,12 +169,6 @@ export class AmpAdNetworkAdsenseImpl extends AmpA4A {
   */
   buildCallback() {
     super.buildCallback();
-    maybeInsertOriginTrialToken(this.win);
-    this.identityTokenPromise_ = this.getAmpDoc()
-      .whenFirstVisible()
-      .then(() =>
-        getIdentityToken(this.win, this.getAmpDoc(), super.getConsentPolicy())
-      );
 
     // Convert the full-width tag to container width for desktop users.
     if (
@@ -289,12 +278,16 @@ export class AmpAdNetworkAdsenseImpl extends AmpA4A {
     let gdprApplies = undefined;
     let additionalConsent = undefined;
     let consentStringType = undefined;
+    let consentSharedData = undefined;
+    let gppSectionId = undefined;
     if (consentTuple) {
       consentState = consentTuple.consentState;
       consentString = consentTuple.consentString;
       gdprApplies = consentTuple.gdprApplies;
       additionalConsent = consentTuple.additionalConsent;
       consentStringType = consentTuple.consentStringType;
+      consentSharedData = consentTuple.consentSharedData;
+      gppSectionId = consentTuple.gppSectionId;
     }
     if (
       consentState == CONSENT_POLICY_STATE.UNKNOWN &&
@@ -389,10 +382,13 @@ export class AmpAdNetworkAdsenseImpl extends AmpA4A {
           ? this.responsiveState_.getRafmtParam()
           : null,
       'gdpr': gdprApplies === true ? '1' : gdprApplies === false ? '0' : null,
-      'gdpr_consent':
-        consentStringType != CONSENT_STRING_TYPE.US_PRIVACY_STRING
-          ? consentString
-          : null,
+      'gdpr_consent': [
+        undefined,
+        CONSENT_STRING_TYPE.TCF_V1,
+        CONSENT_STRING_TYPE.TCF_V2,
+      ].includes(consentStringType)
+        ? consentString
+        : null,
       'addtl_consent': additionalConsent,
       'us_privacy':
         consentStringType == CONSENT_STRING_TYPE.US_PRIVACY_STRING
@@ -412,29 +408,28 @@ export class AmpAdNetworkAdsenseImpl extends AmpA4A {
       'spsa': this.isSinglePageStoryAd
         ? `${this.size_.width}x${this.size_.height}`
         : null,
+      'tfcd': consentSharedData?.['adsense-tfcd'] ?? null,
+      'tfua': consentSharedData?.['adsense-tfua'] ?? null,
+      'gpp':
+        consentStringType == CONSENT_STRING_TYPE.GLOBAL_PRIVACY_PLATFORM
+          ? consentString
+          : null,
+      'gpp_sid':
+        consentStringType == CONSENT_STRING_TYPE.GLOBAL_PRIVACY_PLATFORM
+          ? gppSectionId
+          : null,
     };
 
     const experimentIds = [];
-    const identityPromise = Services.timerFor(this.win)
-      .timeoutPromise(1000, this.identityTokenPromise_)
-      .catch((unusedErr) => {
-        // On error/timeout, proceed.
-        return /**@type {!../../../ads/google/a4a/utils.IdentityToken}*/ ({});
-      });
-    return identityPromise.then((identity) => {
-      return googleAdUrl(
-        this,
-        ADSENSE_BASE_URL,
-        startTime,
-        {
-          'adsid': identity.token || null,
-          'jar': identity.jar || null,
-          'pucrd': identity.pucrd || null,
-          ...parameters,
-        },
-        experimentIds
-      );
-    });
+    return googleAdUrl(
+      this,
+      ADSENSE_BASE_URL,
+      startTime,
+      {
+        ...parameters,
+      },
+      experimentIds
+    );
   }
 
   /** @override */

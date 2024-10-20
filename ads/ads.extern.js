@@ -326,8 +326,14 @@ data.width;
 data.height;
 data.adtype;
 data.adslot;
-data['multi-size'];
+data.slot;
+data.affLayout;
+data.multiSize;
 data.jsontargeting;
+data.affSticky;
+data.affTitle;
+data.affJson;
+data.affRtcConfig;
 data.extras;
 
 // adreactor.js
@@ -545,6 +551,9 @@ data.local;
 data.enablemraid;
 data.jsplayer;
 
+// momagic
+window.momagicAmpInit;
+
 // nativo.js
 var PostRelease;
 PostRelease.Start;
@@ -586,6 +595,12 @@ dfpData.targeting;
 data.dfpSlot;
 data.nc;
 data.auid;
+
+// piberica.js
+data.height;
+data.publisher;
+data.slot;
+data.width;
 
 // pixels.js
 var pixelsAd;
@@ -655,9 +670,6 @@ data.callback;
 
 // seedtag.js
 data.adunitId;
-data.placement;
-data.publisherId;
-data.forceCreative;
 
 // sharethrough.js
 data.pkey;

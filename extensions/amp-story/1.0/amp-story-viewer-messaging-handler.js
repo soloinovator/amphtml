@@ -50,6 +50,10 @@ const GET_STATE_CONFIGURATIONS = {
     dataSource: DataSources.STORE_SERVICE,
     property: StateProperty.UI_STATE,
   },
+  'DESKTOP_ASPECT_RATIO': {
+    dataSource: DataSources.STORE_SERVICE,
+    property: StateProperty.DESKTOP_ASPECT_RATIO,
+  },
   'STORY_PROGRESS': {
     dataSource: DataSources.VARIABLE_SERVICE,
     property: AnalyticsVariable.STORY_PROGRESS,
@@ -119,6 +123,15 @@ export class AmpStoryViewerMessagingHandler {
    */
   send(eventType, data, cancelUnsent = false) {
     this.viewer_.sendMessage(eventType, data, cancelUnsent);
+  }
+
+  /**
+   * @param {string} eventType
+   * @param {function(!JsonObject)} handler
+   * @return {!UnlistenDef}
+   */
+  onMessage(eventType, handler) {
+    this.viewer_.onMessage(eventType, handler);
   }
 
   /**

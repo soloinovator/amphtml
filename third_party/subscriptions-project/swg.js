@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/** Version: 216488bf */
+/** Version: 3579668c */
 /**
  * Copyright 2018 The Subscribe with Google Authors. All Rights Reserved.
  *
@@ -5613,7 +5613,7 @@ function feCached(url) {
  */
 function feArgs(args) {
   return Object.assign(args, {
-    '_client': 'SwG 216488bf',
+    '_client': 'SwG 3579668c',
   });
 }
 
@@ -6955,7 +6955,7 @@ class ActivityPorts$1 {
         'analyticsContext': context.toArray(),
         'publicationId': pageConfig.getPublicationId(),
         'productId': pageConfig.getProductId(),
-        '_client': 'SwG 216488bf',
+        '_client': 'SwG 3579668c',
         'supportsEventManager': true,
       },
       args || {}
@@ -7924,7 +7924,7 @@ class AnalyticsService {
       context.setTransactionId(getUuid());
     }
     context.setReferringOrigin(parseUrl(this.getReferrer_()).origin);
-    context.setClientVersion('SwG 216488bf');
+    context.setClientVersion('SwG 3579668c');
     context.setUrl(getCanonicalUrl(this.doc_));
 
     const utmParams = parseQueryString(this.getQueryString_());
@@ -16682,7 +16682,7 @@ class PaymentsWebActivityDelegate {
       // http://yaqs/4912322941550592
       return '/ui/pay';
     }
-    return this.getBasePath_() + '/ui/pay';
+    return this.getBasePath_() + '/ui/pay?swg=true';
   }
 
   /**
@@ -16695,12 +16695,12 @@ class PaymentsWebActivityDelegate {
   getIframeUrl(environment, origin) {
     // TODO: These should be compile time constants and not dependent
     // on the environment.
-    let iframeUrl = `https://pay.google.com/gp/p/ui/pay?origin=${origin}`;
+    let iframeUrl = `https://pay.google.com/gp/p/ui/pay?origin=${origin}&swg=true`;
     if (
       environment == Constants.Environment.SANDBOX ||
       environment == Constants.Environment.PREPROD
     ) {
-      iframeUrl = `https://pay'+  (environment == Constants.Environment.PREPROD ? '-preprod' : '')+  '.sandbox.google.com/gp/p/ui/pay?origin=${origin}`;
+      iframeUrl = `https://pay'+  (environment == Constants.Environment.PREPROD ? '-preprod' : '')+  '.sandbox.google.com/gp/p/ui/pay?origin=${origin}&swg=true`;
     }
     return iframeUrl;
   }

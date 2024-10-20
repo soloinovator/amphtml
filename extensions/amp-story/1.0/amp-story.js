@@ -177,7 +177,7 @@ const MINIMUM_AD_MEDIA_ELEMENTS = 2;
  */
 const STORY_LOADED_CLASS_NAME = 'i-amphtml-story-loaded';
 
-/** @const {!Object<string, number>} */
+/** @const {!{[key: string]: number}} */
 const MAX_MEDIA_ELEMENT_COUNTS = {
   [MediaType_Enum.AUDIO]: 4,
   [MediaType_Enum.VIDEO]: 8,
@@ -343,6 +343,9 @@ export class AmpStory extends AMP.BaseElement {
      *     preview mode.
      */
     this.indexOfLastPageToPreview_ = null;
+
+    /** @private {!Deferred} a promise that is resolved once the active page is assigned */
+    this.activePageDeferred_ = new Deferred();
   }
 
   /** @override */
@@ -499,6 +502,10 @@ export class AmpStory extends AMP.BaseElement {
     setImportantStyles(document.querySelector(':root'), {
       '--i-amphtml-story-desktop-one-panel-ratio': desktopAspectRatio,
     });
+    this.storeService_.dispatch(
+      Action.SET_DESKTOP_ASPECT_RATIO,
+      desktopAspectRatio
+    );
   }
 
   /**
@@ -515,8 +522,13 @@ export class AmpStory extends AMP.BaseElement {
     if (
       this.getAmpDoc().getVisibilityState() === VisibilityState_Enum.INACTIVE
     ) {
-      this.activePage_.setState(PageState.NOT_ACTIVE);
-      this.activePage_.element.setAttribute('active', '');
+      const resetActivePage = () => {
+        this.activePage_.setState(PageState.NOT_ACTIVE);
+        this.activePage_.element.setAttribute('active', '');
+      };
+      this.activePage_
+        ? resetActivePage()
+        : this.activePageDeferred_.promise.then(() => resetActivePage());
     }
   }
 
@@ -1324,11 +1336,11 @@ export class AmpStory extends AMP.BaseElement {
    * @private
    */
   next_(opt_isAutomaticAdvance) {
-    const activePage = devAssert(
-      this.activePage_,
-      'No active page set when navigating to next page.'
-    );
-    activePage.next(opt_isAutomaticAdvance);
+    this.activePage_
+      ? this.activePage_.next(opt_isAutomaticAdvance)
+      : this.activePageDeferred_.promise.then(() =>
+          this.activePage_.next(opt_isAutomaticAdvance)
+        );
   }
 
   /**
@@ -1368,11 +1380,11 @@ export class AmpStory extends AMP.BaseElement {
    * @private
    */
   previous_() {
-    const activePage = devAssert(
-      this.activePage_,
-      'No active page set when navigating to previous page.'
-    );
-    activePage.previous();
+    this.activePage_
+      ? this.activePage_.previous()
+      : this.activePageDeferred_.promise.then(() =>
+          this.activePage_.previous()
+        );
   }
 
   /**
@@ -1472,6 +1484,7 @@ export class AmpStory extends AMP.BaseElement {
 
     const oldPage = this.activePage_;
     this.activePage_ = targetPage;
+    this.activePageDeferred_.resolve();
     if (!targetPage.isAd()) {
       this.updateNavigationPath_(targetPageId, direction);
     }
@@ -2114,10 +2127,10 @@ export class AmpStory extends AMP.BaseElement {
    *
    * @param {number} distance The distance that the page with the specified
    *     pageId is from the active page.
-   * @param {!Object<string, number>} map A mapping from pageId to its distance
+   * @param {!{[key: string]: number}} map A mapping from pageId to its distance
    *     from the active page.
    * @param {string} pageId The page to be added to the map.
-   * @return {!Object<string, number>} A mapping from page ID to the priority of
+   * @return {!{[key: string]: number}} A mapping from page ID to the priority of
    *     that page.
    * @private
    */
@@ -2515,7 +2528,7 @@ export class AmpStory extends AMP.BaseElement {
   }
 
   /**
-   * Checks for the the storyNavigationPath stack in the history.
+   * Checks for the storyNavigationPath stack in the history.
    * @private
    */
   initializeStoryNavigationPath_() {

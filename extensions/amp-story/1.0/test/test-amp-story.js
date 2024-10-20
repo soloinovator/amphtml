@@ -13,6 +13,7 @@ import {Services} from '#service';
 import {LocalizationService} from '#service/localization';
 import {Performance} from '#service/performance-impl';
 
+import {macroTask} from '#testing/helpers';
 import {waitFor} from '#testing/helpers/service';
 import {poll} from '#testing/iframe';
 
@@ -58,8 +59,6 @@ describes.realWin(
     let localizationService;
     let fetchJson = {};
     let fetchStub;
-
-    const nextTick = () => new Promise((resolve) => win.setTimeout(resolve, 0));
 
     /**
      * @param {number} count
@@ -668,7 +667,7 @@ describes.realWin(
         expect(story.storeService_.get(StateProperty.PAUSED_STATE)).to.be.true;
       });
 
-      it('should rewind the story page when viewer becomes inactive', async () => {
+      it('should reset the active page when viewer becomes inactive', async () => {
         await createStoryWithPages(2, ['cover', 'page-1']);
 
         await story.layoutCallback();
@@ -679,6 +678,19 @@ describes.realWin(
         expect(setStateStub.getCall(1)).to.have.been.calledWithExactly(
           PageState.NOT_ACTIVE
         );
+      });
+
+      it('should reset the active page even when viewer becomes inactive before the active page is set', async () => {
+        await createStoryWithPages(2, ['cover', 'page-1']);
+
+        // Should not throw error of "Cannot read properties of null (reading 'setState')",
+        // even when the active page is not set yet.
+        story
+          .getAmpDoc()
+          .overrideVisibilityState(VisibilityState_Enum.INACTIVE);
+
+        // Resolves the active page and set the page state to inactive.
+        await story.layoutCallback();
       });
 
       it('should pause the story when viewer becomes hidden', async () => {
@@ -1215,6 +1227,25 @@ describes.realWin(
           expect(story.activePage_.element.id).to.equal('page-1');
         });
 
+        it('should navigate when performing a navigational click even if the click happens before the active page is set', async () => {
+          await createStoryWithPages(4, [
+            'cover',
+            'page-1',
+            'page-2',
+            'page-3',
+          ]);
+
+          // Should not throw error of "Cannot read properties of null (reading 'next')",
+          // even when the active page is not set yet.
+          const firstPageEl = element.querySelector('amp-story-page');
+          const clickEvent = new MouseEvent('click', {clientX: 200});
+          firstPageEl.dispatchEvent(clickEvent);
+
+          // Resolves the active page and navigates to the next page.
+          await story.layoutCallback();
+          expect(story.activePage_.element.id).to.equal('page-1');
+        });
+
         it('should NOT navigate when clicking on a tappable element', async () => {
           await createStoryWithPages(4, [
             'cover',
@@ -1451,7 +1482,7 @@ describes.realWin(
             Action.TOGGLE_SUBSCRIPTIONS_STATE,
             SubscriptionsState.BLOCKED
           );
-          await nextTick();
+          await macroTask();
           const paywallPage = story.getPageById(
             storeService.get(StateProperty.CURRENT_PAGE_ID)
           );
@@ -1465,7 +1496,7 @@ describes.realWin(
             Action.TOGGLE_SUBSCRIPTIONS_STATE,
             SubscriptionsState.GRANTED
           );
-          await nextTick();
+          await macroTask();
           const paywallPage = story.getPageById(
             storeService.get(StateProperty.CURRENT_PAGE_ID)
           );
@@ -1484,7 +1515,7 @@ describes.realWin(
             Action.TOGGLE_SUBSCRIPTIONS_STATE,
             SubscriptionsState.BLOCKED
           );
-          await nextTick();
+          await macroTask(win.setTimeout);
           clock.tick(SUBSCRIPTIONS_DELAY_DURATION);
           expect(storeService.get(StateProperty.SUBSCRIPTIONS_DIALOG_UI_STATE))
             .to.be.true;
@@ -1495,7 +1526,7 @@ describes.realWin(
             Action.TOGGLE_SUBSCRIPTIONS_STATE,
             SubscriptionsState.BLOCKED
           );
-          await nextTick();
+          await macroTask();
 
           const paywallPage = story.getPageById(
             storeService.get(StateProperty.CURRENT_PAGE_ID)
@@ -1534,7 +1565,7 @@ describes.realWin(
           storeService.get(StateProperty.CURRENT_PAGE_ID)
         );
         paywallPage.element.dispatchEvent(clickRightEvent);
-        await nextTick();
+        await macroTask();
 
         it('should not show paywall', () => {
           expect(storeService.get(StateProperty.SUBSCRIPTIONS_DIALOG_UI_STATE))
@@ -1876,7 +1907,7 @@ describes.realWin(
             ).to.be.false;
           });
 
-          it('should navigate to the the paywall page', () => {
+          it('should navigate to the paywall page', () => {
             const activePage = story.getPageById(
               storeService.get(StateProperty.CURRENT_PAGE_ID)
             );
@@ -2114,7 +2145,7 @@ describes.realWin(
         expect(pages[1].hasAttribute('distance')).to.be.false;
 
         signals.signal(CommonSignals_Enum.LOAD_END);
-        await nextTick();
+        await macroTask();
 
         // Check page 1 is loaded with distance 1.
         expect(pages[1].getAttribute('distance')).to.be.equal('1');

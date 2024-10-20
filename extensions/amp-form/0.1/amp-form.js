@@ -286,7 +286,7 @@ export class AmpForm {
    * Builds fetch request data for amp-form elements.
    * @param {string} url
    * @param {string} method
-   * @param {!Object<string, string>=} opt_extraFields
+   * @param {!{[key: string]: string}=} opt_extraFields
    * @param {!Array<string>=} opt_fieldDenylist
    * @return {!FetchRequestDef}
    */
@@ -941,7 +941,7 @@ export class AmpForm {
    * Send a request to a form endpoint.
    * @param {string} url
    * @param {string} method
-   * @param {!Object<string, string>=} opt_extraFields
+   * @param {!{[key: string]: string}=} opt_extraFields
    * @param {!Array<string>=} opt_fieldDenylist
    * @return {!Promise<!Response>}
    * @private
@@ -1039,7 +1039,7 @@ export class AmpForm {
   }
 
   /**
-   * Transition the form the the submit error state.
+   * Transition the form the submit error state.
    * @param {*} error
    * @param {!JsonObject} json
    * @param {!ActionTrust_Enum} incomingTrust

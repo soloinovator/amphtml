@@ -6,16 +6,17 @@ import {devAssertElement} from '#core/assert';
 import {VisibilityState_Enum} from '#core/constants/visibility-state';
 import {Deferred} from '#core/data-structures/promise';
 import {isJsonScriptTag, toggleAttribute, tryFocus} from '#core/dom';
-import {computedStyle, resetStyles, setStyle, setStyles} from '#core/dom/style';
+import {resetStyles, setStyle, setStyles} from '#core/dom/style';
 import {findIndex, toArray} from '#core/types/array';
 import {isEnumValue} from '#core/types/enum';
 import {parseJson} from '#core/types/object/json';
 import {parseQueryString} from '#core/types/string/url';
+import {copyTextToClipboard} from '#core/window/clipboard';
 
 import {createCustomEvent, listenOnce} from '#utils/event-helper';
 
 import {AmpStoryPlayerViewportObserver} from './amp-story-player-viewport-observer';
-import {AMP_STORY_PLAYER_EVENT} from './event';
+import {AMP_STORY_COPY_URL, AMP_STORY_PLAYER_EVENT} from './event';
 import {PageScroller} from './page-scroller';
 
 import {cssText} from '../../build/amp-story-player-shadow.css';
@@ -48,7 +49,7 @@ const STORY_POSITION_ENUM = {
 };
 
 /** @const @type {!Array<string>} */
-const SUPPORTED_CACHES = ['cdn.ampproject.org', 'www.bing-amp.com'];
+const SUPPORTED_CACHES = ['cdn.ampproject.org', 'www.bing-amp.com']; // eslint-disable-line local/no-forbidden-terms
 
 /** @const @type {!Array<string>} */
 const SANDBOX_MIN_LIST = ['allow-top-navigation'];
@@ -101,6 +102,7 @@ const STORY_MESSAGE_STATE_TYPE_ENUM = {
   MUTED_STATE: 'MUTED_STATE',
   CURRENT_PAGE_ID: 'CURRENT_PAGE_ID',
   STORY_PROGRESS: 'STORY_PROGRESS',
+  DESKTOP_ASPECT_RATIO: 'DESKTOP_ASPECT_RATIO',
 };
 
 /** @const {string} */
@@ -120,7 +122,7 @@ let DocumentStateTypeDef;
  *   title: (?string),
  *   posterImage: (?string),
  *   storyContentLoaded: ?boolean,
- *   connectedDeferred: !Deferred
+ *   connectedDeferred: !Deferred,
  *   desktopAspectRatio: ?number,
  * }}
  */
@@ -557,7 +559,7 @@ export class AmpStoryPlayer {
       setStyle(iframeEl, 'backgroundImage', story.posterImage);
     }
     iframeEl.classList.add('story-player-iframe');
-    iframeEl.setAttribute('allow', 'autoplay');
+    iframeEl.setAttribute('allow', 'autoplay; web-share');
 
     applySandbox(iframeEl);
     this.addSandboxFlags_(iframeEl);
@@ -622,7 +624,7 @@ export class AmpStoryPlayer {
             story.storyContentLoaded = true;
 
             // Store aspect ratio so that it can be updated when the story becomes active.
-            this.storeAspectRatio_(story);
+            this.storeAndMaybeUpdateAspectRatio_(story);
           });
 
           messaging.sendRequest(
@@ -1140,8 +1142,8 @@ export class AmpStoryPlayer {
       story.distance === 0
         ? STORY_POSITION_ENUM.CURRENT
         : story.idx > this.currentIdx_
-        ? STORY_POSITION_ENUM.NEXT
-        : STORY_POSITION_ENUM.PREVIOUS;
+          ? STORY_POSITION_ENUM.NEXT
+          : STORY_POSITION_ENUM.PREVIOUS;
 
     requestAnimationFrame(() => {
       const {iframe} = story;
@@ -1151,26 +1153,31 @@ export class AmpStoryPlayer {
   }
 
   /**
-   * Store aspect ratio of the loaded story.
+   * Store aspect ratio of the loaded story and and maybe update the active aspect ratio.
    * @param {!StoryDef} story
    * @private
    */
-  storeAspectRatio_(story) {
-    if (story.iframe.contentWindow.document.documentElement) {
-      story.desktopAspectRatio = computedStyle(
-        story.iframe.contentWindow,
-        story.iframe.contentWindow.document.documentElement
-      ).getPropertyValue('--i-amphtml-story-desktop-one-panel-ratio');
-    }
+  storeAndMaybeUpdateAspectRatio_(story) {
+    story.messagingPromise.then((messaging) => {
+      messaging
+        .sendRequest(
+          'getDocumentState',
+          {state: STORY_MESSAGE_STATE_TYPE_ENUM.DESKTOP_ASPECT_RATIO},
+          true
+        )
+        .then((event) => {
+          story.desktopAspectRatio = event.value;
+          this.maybeUpdateAspectRatio_();
+        });
+    });
   }
 
   /**
    * Update player aspect ratio based on the active story aspect ratio.
-   * @param {!StoryDef} story
    * @private
    */
-  updateAspectRatio_(story) {
-    if (story.distance === 0) {
+  maybeUpdateAspectRatio_() {
+    if (this.stories_[this.currentIdx_].desktopAspectRatio) {
       setStyles(this.rootEl_, {
         '--i-amphtml-story-player-panel-ratio':
           this.stories_[this.currentIdx_].desktopAspectRatio,
@@ -1189,8 +1196,7 @@ export class AmpStoryPlayer {
    */
   currentStoryPromise_(story) {
     if (this.stories_[this.currentIdx_].storyContentLoaded) {
-      // Set aspect ratio that was stored when the story was loaded.
-      this.updateAspectRatio_(story);
+      this.maybeUpdateAspectRatio_();
 
       return Promise.resolve();
     }
@@ -1213,8 +1219,7 @@ export class AmpStoryPlayer {
         this.currentStoryLoadDeferred_.resolve();
 
         // Store and update the player aspect ratio based on the active story aspect ratio.
-        this.storeAspectRatio_(story);
-        this.updateAspectRatio_(story);
+        this.storeAndMaybeUpdateAspectRatio_(story);
       })
     );
 
@@ -1282,7 +1287,10 @@ export class AmpStoryPlayer {
             this.updatePosition_(story);
 
             if (story.distance === 0) {
-              tryFocus(story.iframe);
+              // Focus on the current story iframe after the animation ends.
+              story.iframe.addEventListener('animationend', () => {
+                tryFocus(story.iframe);
+              });
             }
           })
           .catch((err) => {
@@ -1595,6 +1603,9 @@ export class AmpStoryPlayer {
       case AMP_STORY_PLAYER_EVENT:
         this.onPlayerEvent_(/** @type {string} */ (data.value));
         break;
+      case AMP_STORY_COPY_URL:
+        this.onCopyUrl_(/** @type {string} */ (data.value), messaging);
+        break;
       default:
         break;
     }
@@ -1615,6 +1626,38 @@ export class AmpStoryPlayer {
         this.element_.dispatchEvent(createCustomEvent(this.win_, value, {}));
         break;
     }
+  }
+
+  /**
+   * Reacts to the copy url request coming from the story.
+   * @private
+   * @param {string} value
+   * @param {Messaging} messaging
+   */
+  onCopyUrl_(value, messaging) {
+    copyTextToClipboard(
+      this.win_,
+      value,
+      () => {
+        messaging.sendRequest(
+          'copyComplete',
+          {
+            'success': true,
+            'url': value,
+          },
+          false
+        );
+      },
+      () => {
+        messaging.sendRequest(
+          'copyComplete',
+          {
+            'success': false,
+          },
+          false
+        );
+      }
+    );
   }
 
   /**

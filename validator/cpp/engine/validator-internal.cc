@@ -311,42 +311,62 @@ ScriptTag ParseScriptTag(htmlparser::Node* node) {
     }
   }
 
+  if (src.empty()) {
+    return script_tag;
+  }
+
+  std::string src_str{src};
   // Determine if this has a valid AMP domain and separate the path from the
   // attribute 'src'. Consumes the domain making src just the path.
   if (absl::ConsumePrefix(&src, kAmpProjectDomain)) {
     script_tag.is_amp_domain = true;
-    script_tag.path = std::string(src);
+    script_tag.path = src_str;
+  } else {
+    script_tag.is_amp_domain = false;
+    htmlparser::URL url(src_str);
+    // Error cases, early exit:
+    if (!url.is_valid()) return script_tag;
+    if (!url.has_protocol()) return script_tag;
+    if (url.protocol() != "https" && url.protocol() != "http")
+      return script_tag;
+    if (url.hostname().empty()) return script_tag;
 
-    // Only look at script tags that have attribute 'async'.
-    if (has_async_attr) {
-      // Determine if this is the AMP Runtime.
-      if (!script_tag.is_extension &&
-          RE2::FullMatch(src, *kRuntimeScriptPathRe)) {
-        script_tag.is_runtime = true;
-        script_tag.has_valid_path = true;
-      }
+    src = url.path_params_fragment().data();
+    // Trim the "/" prefix as this is what kExtensionPathRe expects.
+    if (!src.empty() && src[0] == '/') src = src.substr(1);
+    std::string src_str{src};
+    script_tag.path = src_str;
+  }
 
-      // For AMP Extensions, validate path and extract name and version.
-      if (script_tag.is_extension &&
-          RE2::FullMatch(src, *kExtensionPathRe, &script_tag.extension_name,
-                         &script_tag.extension_version)) {
-        script_tag.has_valid_path = true;
-      }
+  // Only look at script tags that have attribute 'async'.
+  if (has_async_attr) {
+    // Determine if this is the AMP Runtime.
+    if (!script_tag.is_extension &&
+        RE2::FullMatch(src, *kRuntimeScriptPathRe)) {
+      script_tag.is_runtime = true;
+      script_tag.has_valid_path = true;
+    }
 
-      // Determine the release version (LTS, module, standard, etc).
-      if ((has_module_attr && RE2::FullMatch(src, *kModuleLtsScriptPathRe)) ||
-          (has_nomodule_attr && RE2::FullMatch(src, *kLtsScriptPathRe))) {
-        script_tag.release_version = ScriptReleaseVersion::MODULE_NOMODULE_LTS;
-      } else if ((has_module_attr &&
-                  RE2::FullMatch(src, *kModuleScriptPathRe)) ||
-                 (has_nomodule_attr &&
-                  RE2::FullMatch(src, *kStandardScriptPathRe))) {
-        script_tag.release_version = ScriptReleaseVersion::MODULE_NOMODULE;
-      } else if (RE2::FullMatch(src, *kLtsScriptPathRe)) {
-        script_tag.release_version = ScriptReleaseVersion::LTS;
-      } else if (RE2::FullMatch(src, *kStandardScriptPathRe)) {
-        script_tag.release_version = ScriptReleaseVersion::STANDARD;
-      }
+    // For AMP Extensions, validate path and extract name and version.
+    if (script_tag.is_extension &&
+        RE2::FullMatch(src, *kExtensionPathRe, &script_tag.extension_name,
+                       &script_tag.extension_version)) {
+      script_tag.has_valid_path = true;
+    }
+
+    // Determine the release version (LTS, module, standard, etc).
+    if ((has_module_attr && RE2::FullMatch(src, *kModuleLtsScriptPathRe)) ||
+        (has_nomodule_attr && RE2::FullMatch(src, *kLtsScriptPathRe))) {
+      script_tag.release_version = ScriptReleaseVersion::MODULE_NOMODULE_LTS;
+    } else if ((has_module_attr &&
+                RE2::FullMatch(src, *kModuleScriptPathRe)) ||
+               (has_nomodule_attr &&
+                RE2::FullMatch(src, *kStandardScriptPathRe))) {
+      script_tag.release_version = ScriptReleaseVersion::MODULE_NOMODULE;
+    } else if (RE2::FullMatch(src, *kLtsScriptPathRe)) {
+      script_tag.release_version = ScriptReleaseVersion::LTS;
+    } else if (RE2::FullMatch(src, *kStandardScriptPathRe)) {
+      script_tag.release_version = ScriptReleaseVersion::STANDARD;
     }
   }
   return script_tag;
@@ -624,9 +644,9 @@ struct ParsedReferencePoint {
 class ParsedReferencePoints {
  public:
   ParsedReferencePoints() : parent_(nullptr) {}
-  ParsedReferencePoints(
-      const TagSpec& parent,
-      const unordered_map<std::string, int32_t>& tag_spec_ids_by_tag_spec_name)
+  ParsedReferencePoints(const TagSpec& parent,
+                        const absl::flat_hash_map<std::string, int32_t>&
+                            tag_spec_ids_by_tag_spec_name)
       : parent_(&parent) {
     for (const ReferencePoint& p : parent.reference_points()) {
       auto iter = tag_spec_ids_by_tag_spec_name.find(p.tag_spec_name());
@@ -1021,11 +1041,11 @@ RecordValidated ShouldRecordTagspecValidated(
 // which is unique within its context, the ParsedValidatorRules.
 class ParsedTagSpec {
  public:
-  ParsedTagSpec(
-      ParsedAttrSpecs* parsed_attr_specs,
-      const unordered_map<std::string, int32_t>& tag_spec_ids_by_tag_spec_name,
-      RecordValidated should_record_tagspec_validated, const TagSpec* spec,
-      int32_t id)
+  ParsedTagSpec(ParsedAttrSpecs* parsed_attr_specs,
+                const absl::flat_hash_map<std::string, int32_t>&
+                    tag_spec_ids_by_tag_spec_name,
+                RecordValidated should_record_tagspec_validated,
+                const TagSpec* spec, int32_t id)
       : spec_(spec),
         id_(id),
         reference_points_(*spec, tag_spec_ids_by_tag_spec_name),
@@ -1198,7 +1218,7 @@ class ParsedTagSpec {
 
   const set<int32_t>& implicit_attrspecs() const { return implicit_attrspecs_; }
 
-  const unordered_map<std::string, int32_t>& attr_ids_by_name() const {
+  const absl::flat_hash_map<std::string, int32_t>& attr_ids_by_name() const {
     return attr_ids_by_name_;
   }
 
@@ -1220,7 +1240,7 @@ class ParsedTagSpec {
   bool is_reference_point_;
   bool is_type_json_ = false;
   bool contains_url_ = false;
-  unordered_map<std::string, int32_t> attr_ids_by_name_;
+  absl::flat_hash_map<std::string, int32_t> attr_ids_by_name_;
   vector<TypeIdentifier> disabled_by_;
   vector<TypeIdentifier> enabled_by_;
   vector<int32_t> mandatory_attr_ids_;
@@ -2456,7 +2476,7 @@ class Context {
     if (!tag_result.best_match_tag_spec) return;
     const ParsedTagSpec* parsed_tag_spec = tag_result.best_match_tag_spec;
     if (!parsed_tag_spec->AttrsCanSatisfyExtension()) return;
-    const unordered_map<std::string, int32_t>& attr_ids_by_name =
+    const absl::flat_hash_map<std::string, int32_t>& attr_ids_by_name =
         parsed_tag_spec->attr_ids_by_name();
     ExtensionsContext* extensions_ctx = mutable_extensions();
     for (const ParsedHtmlTagAttr& attr : encountered_tag.Attributes()) {
@@ -3976,8 +3996,14 @@ void ValidateAmpScriptSrcAttr(const ParsedHtmlTag& tag,
                               const TagSpec& tag_spec, const Context& context,
                               ValidationResult* result) {
   if (!tag.IsAmpDomain()) {
-    context.AddError(ValidationError::DISALLOWED_AMP_DOMAIN, context.line_col(),
-                     /*params=*/{}, /*spec_url=*/"", result);
+    bool is_amp_format =
+        c_find(context.type_identifiers(), TypeIdentifier::kAmp) !=
+        context.type_identifiers().end();
+    if (!is_amp_format || context.is_transformed()) {
+      context.AddError(ValidationError::DISALLOWED_AMP_DOMAIN,
+                       context.line_col(),
+                       /*params=*/{}, /*spec_url=*/"", result);
+    }
   }
 
   if (tag.IsExtensionScript() && tag_spec.has_extension_spec()) {
@@ -4386,7 +4412,7 @@ void ValidateAttributes(const ParsedTagSpec& parsed_tag_spec,
   set<std::string_view> mandatory_anyofs_seen;
   vector<const ParsedAttrTriggerSpec*> parsed_trigger_specs;
   set<int32_t> attrspecs_validated;
-  const unordered_map<std::string, int32_t>& attr_ids_by_name =
+  const absl::flat_hash_map<std::string, int32_t>& attr_ids_by_name =
       parsed_tag_spec.attr_ids_by_name();
 
   for (const ParsedHtmlTagAttr& attr : encountered_tag.Attributes()) {
@@ -4691,7 +4717,7 @@ ParsedValidatorRules::ParsedValidatorRules(HtmlFormat::Code html_format)
   // |tag_spec_names_to_track| to identify those tagspecs that are
   // referenced by others via "also_requires_tag".  The ParsedTagSpec
   // constructor completes this translation to ids.
-  unordered_map<std::string, int32_t> tag_spec_ids_by_tag_spec_name;
+  absl::flat_hash_map<std::string, int32_t> tag_spec_ids_by_tag_spec_name;
   unordered_set<std::string> tag_spec_names_to_track;
   for (int ii = 0; ii < rules_.tags_size(); ++ii) {
     const TagSpec& tag = rules_.tags(ii);
@@ -5596,7 +5622,7 @@ void ReferencePointMatcher::RecordMatch(const ParsedTagSpec& reference_point) {
 
 void ReferencePointMatcher::ExitParentTag(const Context& context,
                                           ValidationResult* result) const {
-  absl::node_hash_map<int32_t, int32_t> reference_point_by_count;
+  absl::flat_hash_map<int32_t, int32_t> reference_point_by_count;
   for (int32_t r : reference_points_matched_) ++reference_point_by_count[r];
   for (const ParsedReferencePoint& p : *parsed_reference_points_) {
     if (p.point->mandatory() && reference_point_by_count.find(p.tag_spec_id) ==
@@ -5660,9 +5686,7 @@ class ParsedValidatorRulesProvider {
 class Validator {
  public:
   Validator(const ParsedValidatorRules* rules, int max_errors = -1)
-      : rules_(rules),
-        max_errors_(max_errors),
-        context_(rules_, max_errors_) {}
+      : rules_(rules), max_errors_(max_errors), context_(rules_, max_errors_) {}
 
   ValidationResult Validate(const htmlparser::Document& doc) {
     doc_metadata_ = doc.Metadata();
